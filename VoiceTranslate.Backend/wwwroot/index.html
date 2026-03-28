@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Projekt Cloud</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/css/flag-icons.min.css" />
+    <link rel="stylesheet" href="style.css">
+    <script src="backend-com.js" defer></script>
+    <script src="ui-animations.js" defer></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Translator Speech-To-Text</h1>
+        </header>
+
+        <section class="pickers-section">
+            <div class="picker-slot">
+                <div class="expandable-wrapper" id="wrapper-a">
+                    <div class="wheel" id="wheel-a"></div>
+                    <div class="lens"></div>
+                </div>
+                <div class="picker-label">Osoba A</div>
+            </div>
+
+            <div class="picker-slot">
+                <div class="expandable-wrapper" id="wrapper-b">
+                    <div class="wheel" id="wheel-b"></div>
+                    <div class="lens"></div>
+                </div>
+                <div class="picker-label">Osoba B</div>
+            </div>
+        </section>
+
+        <section class="history-container">
+            <div id="history-list">
+                <div class="empty-state">Rozpocznij tłumaczenie...</div>
+            </div>
+        </section>
+
+        <footer>
+            <div class="mic-controls">
+                <button class="mic-btn" id="mic-a">
+                    <span id="flag-display-a" class="fi fi-pl"></span>
+                    <span class="btn-text">Nagraj Osobę A</span>
+                    <div class="rec-stop"></div>
+                </button>
+                <button class="mic-btn" id="mic-b">
+                    <span id="flag-display-b" class="fi fi-gb"></span>
+                    <span class="btn-text">Nagraj Osobę B</span>
+                    <div class="rec-stop"></div>
+                </button>
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>
