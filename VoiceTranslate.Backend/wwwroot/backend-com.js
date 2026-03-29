@@ -1,11 +1,14 @@
 ﻿// --- DANE I KONFIGURACJA AUDIO ---
 let languages = [];
 let audioContext, analyser, dataArray, mediaRecorder, audioChunks = [];
-
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+const API_BASE_URL = isLocal 
+    ? "http://localhost:5289/api" 
+    : "adres clouda";
 // Pobieranie dostępnych języków z API C#
 async function fetchLanguages() {
     try {
-        const response = await fetch("/api/languages");
+        const response = await fetch(`${API_BASE_URL}/translation/languages`);
         if (!response.ok) throw new Error("Błąd pobierania");
         languages = await response.json();
     } catch (error) {
@@ -27,7 +30,7 @@ async function sendToBackend(base64, person) {
     const targetLang = languages[targetIdx].code;
 
     try {
-        const response = await fetch("/api/translate", {
+        const response = await fetch(`${API_BASE_URL}/translation/languages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
