@@ -3,10 +3,10 @@ using VoiceTranslate.Backend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Dodaj Kontrolery
+// Dodanie kontrolerów
 builder.Services.AddControllers();
 
-// 2. Skonfiguruj CORS (zgodnie z naszą rozmową)
+// Konfiguracja CORS
 var frontendUrl = builder.Configuration["FRONTEND_URL"] ?? "http://127.0.0.1:5500";
 builder.Services.AddCors(options => {
     options.AddPolicy("FrontendPolicy", p => 
@@ -16,9 +16,13 @@ builder.Services.AddCors(options => {
          .AllowCredentials());
 });
 
-// 3. Zarejestruj Serwis (DI)
+// Rejestracja serwisów
 builder.Services.AddSingleton<IFirestoreService>(sp => 
-    new FirestoreService("id-twojego-projektu", "firebase-adminsdk.json"));
+    new FirestoreService("id-projektu", "firebase-adminsdk.json"));
+
+builder.Services.AddSingleton<ILanguageService, LanguageService>();
+builder.Services.AddSingleton<ISpeechToTextService, MockSpeechService>(); 
+builder.Services.AddSingleton<ITranslationService, MockTranslationService>(); 
 
 var app = builder.Build();
 

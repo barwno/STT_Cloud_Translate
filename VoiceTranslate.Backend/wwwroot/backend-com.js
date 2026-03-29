@@ -3,7 +3,7 @@ let languages = [];
 let audioContext, analyser, dataArray, mediaRecorder, audioChunks = [];
 const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 const API_BASE_URL = isLocal 
-    ? "http://localhost:5289/api" 
+    ? "https://localhost:7088/api" 
     : "adres clouda";
 // Pobieranie dostępnych języków z API C#
 async function fetchLanguages() {
@@ -30,7 +30,7 @@ async function sendToBackend(base64, person) {
     const targetLang = languages[targetIdx].code;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/translation/languages`, {
+        const response = await fetch(`${API_BASE_URL}/translation/process`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -41,7 +41,7 @@ async function sendToBackend(base64, person) {
         });
 
         const data = await response.json();
-        renderBubble(data.original, data.translated, person);
+        renderBubble(data.originalText, data.translatedText, person);
 
     } catch (error) {
         console.error("Błąd komunikacji z C#:", error);

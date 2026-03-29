@@ -5,39 +5,57 @@ using VoiceTranslate.Backend.Interfaces;
 namespace VoiceTranslate.Backend.Controllers;
 
 [ApiController]
-[Route("api/[controller]")] // Adres: /api/translation
+[Route("api/[controller]")]
 public class TranslationController : ControllerBase
 {
     private readonly IFirestoreService _firestore;
+    private readonly ILanguageService _languages;
+    private readonly ISpeechToTextService _stt;
+    private readonly ITranslationService _translator;
 
-    public TranslationController(IFirestoreService firestore)
+    public TranslationController(
+        IFirestoreService firestore, 
+        ILanguageService languages,
+        ISpeechToTextService stt,
+        ITranslationService translator)
     {
         _firestore = firestore;
+        _languages = languages;
+        _stt = stt;
+        _translator = translator;
     }
 
     [HttpPost("process")]
     public async Task<IActionResult> Process([FromBody] TranslationRequest request)
     {
-        // 1. Obsługa ciasteczka sesji
-        string? sessionId = Request.Cookies["SessionId"] ?? Guid.NewGuid().ToString();
+        // 1. Obsługa sesji (Czysty kod: kontroler dba o ciasteczka)
+        string sessionId = Request.Cookies["SessionId"] ?? Guid.NewGuid().ToString();
         if (!Request.Cookies.ContainsKey("SessionId"))
         {
-            Response.Cookies.Append("SessionId", sessionId, new CookieOptions { 
+            Response.Cookies.Append("SessionId", sessionId, new CookieOptions 
+            { 
                 HttpOnly = true, 
-                Expires = DateTime.Now.AddDays(7) 
+                Expires = DateTimeOffset.UtcNow.AddDays(7),
+                SameSite = SameSiteMode.Lax,
+                Secure = true // Ważne dla HTTPS
             });
         }
 
-        // 2. Tutaj docelowo wywołasz STT i Tłumacza (na razie mocki)
-        string mockOriginal = "Dzień dobry";
-        string mockTranslated = "Good morning";
+        // 2. Wykorzystanie interfejsów (SOLID: DIP)
+        // Zamieniamy mowę na tekst (STT)
+        string originalText = await _stt.ConvertSpeechToTextAsync(request.AudioBase64, "pl");
+        
+        // Tłumaczymy uzyskany tekst
+        string translatedText = await _translator.TranslateTextAsync(originalText, request.TargetLang);
 
-        // 3. Zapis do Firebase przez Interfejs
-        await _firestore.SaveTranslationAsync(sessionId, request.Person, mockOriginal, mockTranslated);
+        // 3. Zapis do bazy danych
+        await _firestore.SaveTranslationAsync(sessionId, request.Person, originalText, translatedText);
 
-        return Ok(new TranslationResponse { 
-            OriginalText = mockOriginal, 
-            TranslatedText = mockTranslated 
+        // 4. Powrót do JS (CamelCase zostanie obsłużony przez Program.cs)
+        return Ok(new TranslationResponse 
+        { 
+            OriginalText = originalText, 
+            TranslatedText = translatedText 
         });
     }
 
@@ -50,14 +68,11 @@ public class TranslationController : ControllerBase
         var history = await _firestore.GetHistoryAsync(sessionId);
         return Ok(history);
     }
+
     [HttpGet("languages")]
     public IActionResult GetLanguages()
     {
-        var langs = new[] {
-            new { code = "pl", name = "Polski", flag = "pl" },
-            new { code = "en", name = "English", flag = "gb" },
-            new { code = "de", name = "Deutsch", flag = "de" }
-        };
-        return Ok(langs);
+        // SOLID: Dane o językach pochodzą z serwisu, nie są wpisane na sztywno
+        return Ok(_languages.GetAvailableLanguages());
     }
 }
