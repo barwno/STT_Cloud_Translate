@@ -1,10 +1,28 @@
+## --- ŚRODOWISKO .NET / VISUAL STUDIO ---
+[Bb]in/
+[Oo]bj/
 .vs/
-bin/
-obj/
+.vscode/
 *.user
 *.suo
+*.userosscache
+*.sln.docstates
+
+## --- PLIKI KONFIGURACYJNE I SEKRETY ---
+# Ignorujemy klucz Firebase, aby nie wyciekł na GitHub
+firebase-adminsdk.json
+*.p12
+*.pfx
+*.publishsettings
+
+## --- PLIKI TYMCZASOWE I LOGI ---
 *.log
 *.db
-*.pfx
+*.tmp
 .idea/
-node_modules/
+*.swp
+
+## --- MULTIMEDIA I NAGRANIA ---
+# Ignorujemy nagrania audio, zostawiając sam folder
+VoiceTranslate.Backend/Recordings/*.wav
+VoiceTranslate.Backend/Recordings/*.mp3

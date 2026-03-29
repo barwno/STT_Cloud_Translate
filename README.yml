@@ -1,0 +1,59 @@
+projekt: VoiceTranslate
+wersja: 1.0.0
+technologie:
+  backend: .NET 8 (LTS)
+  frontend_sdk: JavaScript (Vanilla)
+  baza_danych: Google Firestore
+
+kontrakt_api:
+  adres_bazowy: "https://localhost:7088/api"
+  punkty_koncowe:
+    - sciezka: "/translation/languages"
+      metoda: GET
+      opis: "Pobiera listę wspieranych języków i flag z serwisu C#."
+      format_odpowiedzi: "Tablica<{code, name, flag}>"
+
+    - sciezka: "/translation/process"
+      metoda: POST
+      opis: "Procesuje nagranie audio (STT + Tłumaczenie)."
+      body_zapytania:
+        audioBase64: "string (surowe dane audio)"
+        target_lang: "string (kod języka docelowego)"
+        person: "string ('a' | 'b')"
+      format_odpowiedzi: "{originalText, translatedText}"
+
+    - sciezka: "/translation/history"
+      metoda: GET
+      opis: "Pobiera historię rozmowy dla aktywnej sesji (na podstawie cookies)."
+      autoryzacja: "Ciasteczko SessionId (zarządzane przez backend)"
+
+funkcje_sdk_komunikacji:
+  pobieranie_jezykow:
+    nazwa: "fetchLanguages()"
+    moment_wywolania: "window.onload"
+    wynik: "Wypełnia globalną tablicę 'languages' i inicjuje UI."
+  
+  wysylka_do_backendu:
+    nazwa: "sendToBackend(base64, person)"
+    moment_wywolania: "Zdarzenie mediaRecorder.onstop"
+    logika_wyboru_jezyka:
+      jesli_osoba_a: "target_lang = kod z bębna B (rozmówcy)"
+      jesli_osoba_b: "target_lang = kod z bębna A (rozmówcy)"
+
+wymagania_dla_frontendu:
+  wymagane_callbacki_w_ui:
+    - nazwa: "initAllDrums()"
+      cel: "Renderowanie bębnów po otrzymaniu danych z API."
+    - nazwa: "renderBubble(originalText, translatedText, person)"
+      cel: "Dodanie dymka do widoku historii."
+      mapowanie_wizualne:
+        person_a: "Lewa strona (klasa .type-a)"
+        person_b: "Prawa strona (klasa .type-b)"
+
+konfiguracja_bezpieczeństwa:
+  pliki_lokalne:
+    - nazwa: "firebase-adminsdk.json"
+      opis: "Klucz prywatny do Firestore. Musi być w root backendu."
+      status: "STRICT: Ignorowany przez .gitignore"
+  cors:
+    dozwolone_hosty: ["http://127.0.0.1:5500", "http://localhost:5500"]
