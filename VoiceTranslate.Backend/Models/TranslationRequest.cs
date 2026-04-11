@@ -1,8 +1,8 @@
-namespace VoiceTranslate.Backend.Models;
-
-public class TranslationRequest
+namespace VoiceTranslate.Backend.Models
 {
-    public string AudioBase64 { get; set; } = string.Empty;
-    public string TargetLang { get; set; } = string.Empty;
-    public string Person { get; set; } = string.Empty; // "a" lub "b"
+    public class TranscriptionRequest
+    {
+        public string AudioContent { get; set; } = string.Empty;
+        public string LanguageCode { get; set; } = "pl-PL";
+    }
 }

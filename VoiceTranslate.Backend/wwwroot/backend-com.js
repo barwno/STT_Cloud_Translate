@@ -1,59 +1,37 @@
-﻿// --- DANE I KONFIGURACJA AUDIO ---
-let languages = [];
-let audioContext, analyser, dataArray, mediaRecorder, audioChunks = [];
-const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-const API_BASE_URL = isLocal 
-    ? "https://localhost:7088/api" 
-    : "adres clouda";
-// Pobieranie dostępnych języków z API C#
-async function fetchLanguages() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/translation/languages`);
-        if (!response.ok) throw new Error("Błąd pobierania");
-        languages = await response.json();
-    } catch (error) {
-        console.error("C# Offline - ładuję dane awaryjne");
-        languages = [
-            { code: 'pl', name: 'Polski', flag: 'pl' },
-            { code: 'en', name: 'English', flag: 'gb' },
-            { code: 'de', name: 'Deutsch', flag: 'de' }
-        ];
-    }
-    if (typeof initAllDrums === "function") {
-        initAllDrums();
-    }
+﻿async function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }
 
-// Wysyłanie nagrania do tłumaczenia
-async function sendToBackend(base64, person) {
-    const targetIdx = person === 'a' ? state['wrapper-b'].activeIdx : state['wrapper-a'].activeIdx;
-    const targetLang = languages[targetIdx].code;
+async function sendToBackend(base64Audio) {
+    const lang = document.getElementById("language").value;
+    console.log("Wysyłanie danych do backendu... Język:", lang);
 
     try {
-        const response = await fetch(`${API_BASE_URL}/translation/process`, {
+        const response = await fetch('/api/transcription/process', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                audioBase64: base64,
-                targetLang: targetLang,
-                person: person
+                audioContent: base64Audio,
+                languageCode: lang
             })
         });
 
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error("Serwer zwrócił błąd:", response.status, errText);
+            return `Błąd serwera: ${response.status}`;
+        }
+
         const data = await response.json();
-        renderBubble(data.originalText, data.translatedText, person);
-
+        console.log("Odebrano dane:", data);
+        return data.text || "Brak tekstu w odpowiedzi.";
     } catch (error) {
-        console.error("Błąd komunikacji z C#:", error);
-        renderBubble("Błąd", "Serwer nie odpowiada", person);
+        console.error("Błąd sieci/fetch:", error);
+        return "Błąd połączenia: " + error.message;
     }
-}
-
-// Konwersja Bloba na format tekstowy Base64
-function blobToBase64(blob) {
-    return new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result.split(',')[1]);
-        reader.readAsDataURL(blob);
-    });
 }

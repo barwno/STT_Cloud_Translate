@@ -1,35 +1,53 @@
+using Google.Apis.Auth.OAuth2;
+using Google.Cloud.Speech.V1;
+using Google.Cloud.Translation.V2;
+using Google.Cloud.Firestore;
 using VoiceTranslate.Backend.Interfaces;
 using VoiceTranslate.Backend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Dodanie kontrolerów
+// 1. Dodaj usługi kontrolerów i Swaggera
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer(); // Potrzebne dla Swaggera
+builder.Services.AddSwaggerGen();           // Generator Swaggera
 
-// Konfiguracja CORS
-var frontendUrl = builder.Configuration["FRONTEND_URL"] ?? "http://127.0.0.1:5500";
-builder.Services.AddCors(options => {
-    options.AddPolicy("FrontendPolicy", p => 
-        p.WithOrigins(frontendUrl, "http://localhost:5500")
-         .AllowAnyHeader()
-         .AllowAnyMethod()
-         .AllowCredentials());
-});
+// Logika sprawdzania Google Cloud (bez zmian)
+bool isCloudReady = false;
+try {
+    GoogleCredential.GetApplicationDefault();
+    isCloudReady = true;
+} catch { isCloudReady = false; }
 
-// Rejestracja serwisów
-builder.Services.AddSingleton<IFirestoreService>(sp => 
-    new FirestoreService("id-projektu", "firebase-adminsdk.json"));
-
-builder.Services.AddSingleton<ILanguageService, LanguageService>();
-builder.Services.AddSingleton<ISpeechToTextService, MockSpeechService>(); 
-builder.Services.AddSingleton<ITranslationService, MockTranslationService>(); 
+if (isCloudReady)
+{
+    string projectId = "voice-translate-backend-id";
+    builder.Services.AddSingleton(SpeechClient.Create());
+    builder.Services.AddSingleton(TranslationClient.Create());
+    builder.Services.AddSingleton(FirestoreDb.Create(projectId));
+    builder.Services.AddScoped<ITranscriptionService, GoogleTranscriptionService>();
+    Console.WriteLine(">>> SYSTEM: Tryb Google Cloud");
+}
+else
+{
+    builder.Services.AddScoped<ITranscriptionService, MockTranscriptionService>();
+    Console.WriteLine(">>> SYSTEM: Tryb Mockup");
+}
 
 var app = builder.Build();
 
-app.UseDefaultFiles();
-app.UseStaticFiles();  
+// 2. Włącz interfejs Swaggera 
+// Możesz to zostawić włączone zawsze lub tylko w Development: if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "VoiceTranslate API v1");
+});
 
-app.UseCors("FrontendPolicy");
-app.MapControllers(); // To sprawia, że TranslationController zaczyna działać
+app.UseDefaultFiles();
+app.UseStaticFiles();
+app.UseRouting();
+app.MapControllers();
+app.MapFallbackToFile("frontend.html");
 
 app.Run();

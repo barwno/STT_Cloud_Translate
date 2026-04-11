@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Speech to Text</title>
+  <link rel="stylesheet" href="style-frontend.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div class="hero-badge">Speech to Text</div>
+      <h1>Translator</h1>
+      <p>
+        Kliknij start i zacznij mówić. 
+      </p>
+    </header>
+
+    <main class="card">
+      <section class="controls">
+        <div class="field">
+          <label for="language">Język rozpoznawania</label>
+          <select id="language">
+            <option value="pl-PL" selected>Polski</option>
+            <option value="en-US">English (US)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="de-DE">Deutsch</option>
+            <option value="fr-FR">Français</option>
+            <option value="es-ES">Español</option>
+          </select>
+        </div>
+
+        <div class="button-row">
+          <button id="startBtn" class="btn btn-primary">Start</button>
+          <button id="stopBtn" class="btn btn-secondary" disabled>Stop</button>
+          <button id="clearBtn" class="btn btn-ghost">Wyczyść</button>
+          <button id="copyBtn" class="btn btn-ghost">Kopiuj</button>
+        </div>
+      </section>
+
+      <section class="status-bar">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Gotowe do nagrywania</span>
+      </section>
+
+      <section class="output-section">
+        <div class="output-header">
+          <h2>Wynik transkrypcji</h2>
+          <small id="charCount">0 znaków</small>
+        </div>
+        <textarea
+          id="output"
+          placeholder="Tutaj pojawi się rozpoznany tekst..."
+          spellcheck="false"
+        ></textarea>
+      </section>
+
+      <section class="info-box" id="infoBox">
+        <strong>Projekt:</strong> Aplikacja Speech-To-Text
+      </section>
+    </main>
+  </div>
+
+    <script src="script-frontend.js"></script>
+    <script src="backend-com.js"></script>
+</body>
+</html>
