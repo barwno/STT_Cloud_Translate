@@ -21,10 +21,16 @@ try {
 
 if (isCloudReady)
 {
-    string projectId = "voice-translate-backend-id";
+    string projectId = "ivory-period-491009-b1";
     builder.Services.AddSingleton(SpeechClient.Create());
     builder.Services.AddSingleton(TranslationClient.Create());
-    builder.Services.AddSingleton(FirestoreDb.Create(projectId));
+    var firestoreDb = new FirestoreDbBuilder
+{
+    ProjectId = projectId,
+    DatabaseId = "voicebridge"
+}.Build();
+
+builder.Services.AddSingleton(firestoreDb);
     builder.Services.AddScoped<ITranscriptionService, GoogleTranscriptionService>();
     Console.WriteLine(">>> SYSTEM: Tryb Google Cloud");
 }

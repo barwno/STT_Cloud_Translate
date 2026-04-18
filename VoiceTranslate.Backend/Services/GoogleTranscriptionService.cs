@@ -20,7 +20,7 @@ namespace VoiceTranslate.Backend.Services
 
         public async Task<string> ProcessTranscriptionAsync(string base64Audio, string languageCode)
         {
-            // 1. Rozpoznawanie mowy
+            // Rozpoznawanie mowy
             var response = await _speech.RecognizeAsync(new RecognitionConfig {
                 Encoding = RecognitionConfig.Types.AudioEncoding.WebmOpus,
                 SampleRateHertz = 48000,
@@ -31,13 +31,13 @@ namespace VoiceTranslate.Backend.Services
 
             if (string.IsNullOrEmpty(text)) return "[Nie wykryto mowy]";
 
-            // 2. Tłumaczenie na PL (jeśli trzeba)
+            // Tłumaczenie na PL 
             if (languageCode != "pl-PL") {
                 var translation = await _translator.TranslateTextAsync(text, Google.Cloud.Translation.V2.LanguageCodes.Polish);
                 text = translation.TranslatedText;
             }
 
-            // 3. Zapis do Firestore
+            // Zapis do Firestore
             await _firestore.Collection("conversations").AddAsync(new { 
                 originalLang = languageCode, 
                 content = text, 
