@@ -35,3 +35,32 @@ async function sendToBackend(base64Audio) {
         return "Błąd połączenia: " + error.message;
     }
 }
+async function initializeLanguageSelector() {
+    const selectElement = document.getElementById('language');
+    
+    try {
+        // Pobieramy listę z Twojego nowego endpointu w TranscriptionController
+        const response = await fetch('/api/transcription/supported-languages');
+        if (!response.ok) throw new Error('Błąd API');
+        
+        const languages = await response.json();
+        
+        // Czyścimy wszystko, co wpisałeś ręcznie w HTML
+        selectElement.innerHTML = '';
+
+        // Dodajemy opcje dynamicznie
+        languages.forEach(lang => {
+            const option = document.createElement('option');
+            option.value = lang.code;
+            option.textContent = lang.name;
+            selectElement.appendChild(option);
+        });
+
+        // Opcjonalnie: ustaw domyślny język, np. Polski
+        selectElement.value = 'pl-PL'; 
+    } catch (error) {
+        console.error('Nie udało się załadować języków:', error);
+        // Opcjonalnie: zostaw wtedy statyczną listę jako "fallback"
+    }
+}
+window.addEventListener('DOMContentLoaded', initializeLanguageSelector);
