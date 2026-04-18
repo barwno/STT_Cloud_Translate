@@ -1,4 +1,5 @@
-﻿async function blobToBase64(blob) {
+﻿// Funkcja zamieniająca nagranie dźwiękowe z przeglądarki na format tekstowy zrozumiały dla serwera.
+async function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result.split(',')[1]);
@@ -7,6 +8,7 @@
     });
 }
 
+// Funkcja wysyłająca nagranie do backendu i oczekująca na gotowy tekst (transkrypcję).
 async function sendToBackend(base64Audio) {
     const lang = document.getElementById("language").value;
     console.log("Wysyłanie danych do backendu... Język:", lang);
@@ -21,6 +23,7 @@ async function sendToBackend(base64Audio) {
             })
         });
 
+        // Obsługa błędów, jeśli serwer nie może przetworzyć nagrania.
         if (!response.ok) {
             const errText = await response.text();
             console.error("Serwer zwrócił błąd:", response.status, errText);
@@ -28,27 +31,26 @@ async function sendToBackend(base64Audio) {
         }
 
         const data = await response.json();
-        console.log("Odebrano dane:", data);
         return data.text || "Brak tekstu w odpowiedzi.";
     } catch (error) {
         console.error("Błąd sieci/fetch:", error);
         return "Błąd połączenia: " + error.message;
     }
 }
+
+// Pobiera listę języków z serwera i dynamicznie uzupełnia menu wyboru na stronie.
 async function initializeLanguageSelector() {
     const selectElement = document.getElementById('language');
     
     try {
-        // Pobieramy listę z Twojego nowego endpointu w TranscriptionController
         const response = await fetch('/api/transcription/supported-languages');
         if (!response.ok) throw new Error('Błąd API');
         
         const languages = await response.json();
         
-        // Czyścimy wszystko, co wpisałeś ręcznie w HTML
-        selectElement.innerHTML = '';
+        selectElement.innerHTML = ''; // Usuwa dotychczasowe opcje.
 
-        // Dodajemy opcje dynamicznie
+        // Dodaje nowe opcje języków pobrane z Google.
         languages.forEach(lang => {
             const option = document.createElement('option');
             option.value = lang.code;
@@ -56,11 +58,9 @@ async function initializeLanguageSelector() {
             selectElement.appendChild(option);
         });
 
-        // Opcjonalnie: ustaw domyślny język, np. Polski
-        selectElement.value = 'pl-PL'; 
+        selectElement.value = 'pl-PL'; // Ustawia polski jako domyślny język.
     } catch (error) {
         console.error('Nie udało się załadować języków:', error);
-        // Opcjonalnie: zostaw wtedy statyczną listę jako "fallback"
     }
 }
 window.addEventListener('DOMContentLoaded', initializeLanguageSelector);

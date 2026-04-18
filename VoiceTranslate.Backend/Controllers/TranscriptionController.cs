@@ -8,6 +8,7 @@ using Google.Cloud.Translation.V2;
 
 namespace VoiceTranslate.Backend.Controllers
 {
+    // Główny moduł zarządzający komunikacją między stroną internetową a usługami przetwarzania dźwięku i tłumaczeń.
     [ApiController]
     [Route("api/[controller]")]
     public class TranscriptionController : ControllerBase
@@ -20,12 +21,13 @@ namespace VoiceTranslate.Backend.Controllers
             _service = service;
             _translationClient = translationClient;
         }
+
+        // Pobiera z Google aktualną listę języków, które system może obsłużyć, aby użytkownik mógł je wybrać w menu.
         [HttpGet("supported-languages")]
         public async Task<IActionResult> GetSupportedLanguages()
         {
             try
             {
-                // Operacja sieciowa, która może rzucić wyjątek
                 var languages = await _translationClient.ListLanguagesAsync(target: "pl");
 
                 var result = languages.Select(l => new
@@ -40,13 +42,14 @@ namespace VoiceTranslate.Backend.Controllers
             }
             catch (Exception ex)
             {
-                // Logujemy błąd do konsoli
+                // W przypadku awarii połączenia z Google, system rejestruje błąd i informuje aplikację o problemie.
                 Console.WriteLine($"BŁĄD POBIERANIA JĘZYKÓW: {ex.Message}");
 
-                // Zwracamy kod 500 z komunikatem, żeby frontend wiedział, że coś poszło nie tak
                 return StatusCode(500, new { message = "Nie udało się pobrać listy języków.", error = ex.Message });
             }
         }
+
+        // Przyjmuje nagranie audio od użytkownika, wysyła je do analizy i zwraca przetworzony tekst.
         [HttpPost("process")]
         public async Task<IActionResult> Process([FromBody] TranscriptionRequest request)
         {
@@ -55,18 +58,15 @@ namespace VoiceTranslate.Backend.Controllers
 
             try
             {
-                // Próba przetworzenia transkrypcji
+                // Uruchomienie głównego procesu zamiany mowy na tekst za pomocą serwisu transkrypcji.
                 var result = await _service.ProcessTranscriptionAsync(request.AudioContent, request.LanguageCode);
                 return Ok(new { text = result });
             }
             catch (Exception ex)
             {
-                // 1. Zapisujemy pełny stack trace do logów Google Cloud
-                // Dzięki temu w zakładce "Dzienniki" zobaczysz dokładnie, w której linii jest błąd
+                // Rejestrowanie szczegółów błędu oraz zwracanie raportu, aby można było szybko naprawić problem w kodzie.
                 Console.WriteLine($"PEŁNY BŁĄD APLIKACJI: {ex.ToString()}");
 
-                // 2. Zwracamy szczegóły do przeglądarki, abyś widział je w narzędziach F12
-                // To pozwoli nam zidentyfikować błąd bez ciągłego zaglądania do logów w konsoli
                 return StatusCode(500, new
                 {
                     message = "Wystąpił błąd podczas przetwarzania transkrypcji.",

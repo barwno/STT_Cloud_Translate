@@ -5,6 +5,7 @@ using VoiceTranslate.Backend.Interfaces;
 
 namespace VoiceTranslate.Backend.Services
 {
+    // Główny moduł wykonawczy – to "mózg" aplikacji, który łączy usługi Google w jeden proces przetwarzania danych.
     public class GoogleTranscriptionService : ITranscriptionService
     {
         private readonly SpeechClient _speech;
@@ -18,9 +19,10 @@ namespace VoiceTranslate.Backend.Services
             _firestore = firestore;
         }
 
+        // Główny proces: zamiana mowy na tekst, opcjonalne tłumaczenie i archiwizacja wyników w bazie danych.
         public async Task<string> ProcessTranscriptionAsync(string base64Audio, string languageCode)
         {
-            // Rozpoznawanie mowy
+            // 1. Zamiana przesłanego nagrania audio na tekst przy użyciu zaawansowanych algorytmów rozpoznawania mowy Google.
             var response = await _speech.RecognizeAsync(new RecognitionConfig {
                 Encoding = RecognitionConfig.Types.AudioEncoding.WebmOpus,
                 SampleRateHertz = 48000,
@@ -31,13 +33,13 @@ namespace VoiceTranslate.Backend.Services
 
             if (string.IsNullOrEmpty(text)) return "[Nie wykryto mowy]";
 
-            // Tłumaczenie na PL 
+            // 2. Jeśli język nagrania jest inny niż polski, automatycznie tłumaczymy uzyskany tekst na język polski.
             if (languageCode != "pl-PL") {
                 var translation = await _translator.TranslateTextAsync(text, Google.Cloud.Translation.V2.LanguageCodes.Polish);
                 text = translation.TranslatedText;
             }
 
-            // Zapis do Firestore
+            // 3. Archiwizacja przetworzonego tekstu w bazie danych chmurowej, aby można było do niego wrócić w przyszłości.
             await _firestore.Collection("conversations").AddAsync(new { 
                 originalLang = languageCode, 
                 content = text, 
