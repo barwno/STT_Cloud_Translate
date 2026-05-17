@@ -37,7 +37,22 @@ async function sendToBackend(base64Audio) {
         return "Błąd połączenia: " + error.message;
     }
 }
-
+async function fetchLatestFromRecord() {
+    try {
+        const response = await fetch('/api/transcription/latest');
+        
+        if (!response.ok) {
+            console.warn("Serwer nie zwrócił poprawnego rekordu z Firestore. Status:", response.status);
+            return null;
+        }
+        
+        const data = await response.json();
+        return data; // Zwraca obiekt { content: "...", timestamp: "..." }
+    } catch (error) {
+        console.error("Błąd sieci podczas pobierania najnowszego rekordu:", error);
+        return null;
+    }
+}
 // Pobiera listę języków z serwera i dynamicznie uzupełnia menu wyboru na stronie.
 async function initializeLanguageSelector() {
     const selectElement = document.getElementById('language');

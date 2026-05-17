@@ -5,6 +5,8 @@ using VoiceTranslate.Backend.Interfaces;
 using VoiceTranslate.Backend.Models;
 using System.Linq;
 using Google.Cloud.Translation.V2;
+using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
 
 namespace VoiceTranslate.Backend.Controllers
 {
@@ -15,11 +17,13 @@ namespace VoiceTranslate.Backend.Controllers
     {
         private readonly ITranscriptionService _service;
         private readonly TranslationClient _translationClient;
+        private readonly FirestoreDb _firestore;
 
-        public TranscriptionController(ITranscriptionService service, TranslationClient translationClient)
+        public TranscriptionController(ITranscriptionService service, TranslationClient translationClient, FirestoreDb firestore)
         {
             _service = service;
             _translationClient = translationClient;
+            _firestore = firestore;
         }
 
         // Pobiera z Google aktualną listę języków, które system może obsłużyć, aby użytkownik mógł je wybrać w menu.
@@ -48,7 +52,35 @@ namespace VoiceTranslate.Backend.Controllers
                 return StatusCode(500, new { message = "Nie udało się pobrać listy języków.", error = ex.Message });
             }
         }
+        [HttpGet("latest")]
+        public async Task<IActionResult> GetLatestRecord()
+        {
+            try
+            {
+                Query query = _firestore.Collection("conversations")
+                                        .OrderByDescending("timestamp")
+                                        .Limit(1);
 
+                QuerySnapshot snapshot = await query.GetSnapshotAsync();
+                var document = snapshot.Documents.FirstOrDefault();
+
+                if (document == null)
+                    return NotFound(new { message = "Brak wpisów w bazie danych." });
+
+                var result = new
+                {
+                    content = document.ContainsField("content") ? document.GetValue<string>("content") : "",
+                    timestamp = document.ContainsField("timestamp") ? document.GetValue<DateTime>("timestamp").ToLocalTime().ToString("HH:mm:ss") : ""
+                };
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"BŁĄD POBIERANIA Z FIRESTORE: {ex.ToString()}");
+                return StatusCode(500, new { message = "Błąd bazy danych.", error = ex.Message });
+            }
+        }
         // Przyjmuje nagranie audio od użytkownika, wysyła je do analizy i zwraca przetworzony tekst.
         [HttpPost("process")]
         public async Task<IActionResult> Process([FromBody] TranscriptionRequest request)

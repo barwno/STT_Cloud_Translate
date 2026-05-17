@@ -16,6 +16,7 @@ builder.Services.AddSwaggerGen();
 // Weryfikacja dostępu do usług Google Cloud w celu automatycznego wyboru trybu pracy aplikacji.
 bool isCloudReady = false;
 try {
+    // Pobranie konta serwisowego celem odrzucenia tradycyjnych API keys
     GoogleCredential.GetApplicationDefault();
     isCloudReady = true;
 } catch { isCloudReady = false; }
