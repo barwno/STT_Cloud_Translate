@@ -5,14 +5,11 @@ const copyBtn = document.getElementById("copyBtn");
 const output = document.getElementById("output");
 const statusText = document.getElementById("statusText");
 const statusDot = document.getElementById("statusDot");
-const language = document.getElementById("language");
 const charCount = document.getElementById("charCount");
 
 let mediaRecorder;
 let audioChunks = [];
 let activeStream = null;
-let lastDisplayedTimestamp = null; // Przechowuje timestamp ostatnio dodanej wiadomości
-let recordingStartTime = null;     // Zapamięta moment kliknięcia "Start"
 
 function updateCount() {
     charCount.textContent = `${output.value.length} znaków`;
@@ -28,10 +25,21 @@ function setButtons(listening) {
     stopBtn.disabled = !listening;
 }
 
+// Pobiera historię sesji i odświeża pole tekstowe czatu
+async function refreshChatFromSession() {
+    const history = await fetchSessionHistory();
+    output.value = history
+        .map(item => `[${item.timestamp}] ${item.content}`)
+        .join("\n\n");
+        
+    output.scrollTop = output.scrollHeight;
+    updateCount();
+}
+
 startBtn.addEventListener("click", async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        activeStream = stream; // Zapisujemy strumień, by go później zamknąć
+        activeStream = stream;
         mediaRecorder = new MediaRecorder(stream);
         audioChunks = [];
 
@@ -40,16 +48,6 @@ startBtn.addEventListener("click", async () => {
         };
         
         mediaRecorder.onstop = async () => {
-            const recordingDuration = Date.now() - recordingStartTime;
-            if (recordingDuration < 1000) { 
-                setStatus("Nagranie zbyt krótkie");
-                setButtons(false);
-                if (activeStream) {
-                    activeStream.getTracks().forEach(track => track.stop());
-                }
-                return;
-            }
-
             setStatus("Przetwarzanie...", true);
             
             try {
@@ -61,26 +59,17 @@ startBtn.addEventListener("click", async () => {
                 if (resultText && resultText.startsWith("Błąd")) {
                     output.value += (output.value ? "\n\n" : "") + `[System] ${resultText}`;
                     setStatus("Błąd przetwarzania");
-                    return; // Wychodzimy, blokując odpytanie Firestore o stary rekord
+                    return;
                 }
-                
-                const latestRecord = await fetchLatestFromRecord();
-                
-                if (latestRecord) {
-                    const newMessage = `[${latestRecord.timestamp}] ${latestRecord.content}`;
-                    
-                    if (latestRecord.timestamp !== lastDisplayedTimestamp) {
-                        output.value += (output.value ? "\n\n" : "") + newMessage;
-                        lastDisplayedTimestamp = latestRecord.timestamp;
-                    }
+
+                if (!resultText || resultText.trim() === "") {
+                    setStatus("Nie rozpoznano mowy");
                 } else {
-                    output.value += (output.value ? "\n\n" : "") + "[Błąd: Nie udało się zweryfikować zapisu w bazie danych Firestore]";
+                    setStatus("Gotowe");
                 }
-                
-                output.scrollTop = output.scrollHeight;
-                
-                updateCount();
-                setStatus("Gotowe");
+
+                await refreshChatFromSession();
+
             } catch (err) {
                 console.error(err);
                 setStatus("Błąd przetwarzania");
@@ -92,8 +81,6 @@ startBtn.addEventListener("click", async () => {
             }
         };
 
-        // Zapisujemy dokładny czas kliknięcia START i odpalamy nagrywanie
-        recordingStartTime = Date.now();
         mediaRecorder.start();
         setButtons(true);
         setStatus("Nagrywanie...", true);
@@ -114,9 +101,8 @@ stopBtn.addEventListener("click", () => {
 
 clearBtn.addEventListener("click", () => {
     output.value = "";
-    lastDisplayedTimestamp = null;
     updateCount();
-    setStatus("Wyczyszczono pole");
+    setStatus("Wyczyszczono podgląd sesji");
 });
 
 copyBtn.addEventListener("click", () => {
@@ -126,18 +112,21 @@ copyBtn.addEventListener("click", () => {
     }
 });
 
-// Autonomiczna funkcja pobierająca najnowszy rekord bezpośrednio z endpointu API bazy danych
-async function fetchLatestFromRecord() {
-    try {
-        const response = await fetch('/api/transcription/latest');
-        if (!response.ok) return null;
-        const data = await response.json();
-        return data; // Zwraca obiekt { content: string, timestamp: string }
-    } catch (error) {
-        console.error("Błąd pobierania najnowszego rekordu:", error);
-        return null;
-    }
-}
-
 output.addEventListener("input", updateCount);
-updateCount();
+
+// INICJALIZACJA SYSTEMU SESYJNEGO
+window.addEventListener('DOMContentLoaded', async () => {
+    startBtn.disabled = true; 
+    setStatus("Inicjalizacja sesji...");
+
+    await startNewSession(); 
+    
+    if (currentSessionId) {
+        startBtn.disabled = false;
+        setStatus("System gotowy");
+    } else {
+        setStatus("Błąd sesji - odśwież stronę");
+    }
+    
+    updateCount();
+});

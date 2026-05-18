@@ -4,15 +4,14 @@ using System.Threading.Tasks;
 using VoiceTranslate.Backend.Interfaces;
 using VoiceTranslate.Backend.Models;
 using System.Linq;
+using System.Collections.Generic;
 using Google.Cloud.Translation.V2;
 using Google.Cloud.Firestore;
-using Google.Cloud.Firestore.V1;
 
 namespace VoiceTranslate.Backend.Controllers
 {
-    // Główny moduł zarządzający komunikacją między stroną internetową a usługami przetwarzania dźwięku i tłumaczeń.
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/transcription")]
     public class TranscriptionController : ControllerBase
     {
         private readonly ITranscriptionService _service;
@@ -26,85 +25,132 @@ namespace VoiceTranslate.Backend.Controllers
             _firestore = firestore;
         }
 
-        // Pobiera z Google aktualną listę języków, które system może obsłużyć, aby użytkownik mógł je wybrać w menu.
         [HttpGet("supported-languages")]
         public async Task<IActionResult> GetSupportedLanguages()
         {
             try
             {
                 var languages = await _translationClient.ListLanguagesAsync(target: "pl");
-
                 var result = languages.Select(l => new
                 {
                     code = l.Code,
-                    // Upiększamy nazwę: pierwsza litera duża, reszta bez zmian
                     name = !string.IsNullOrEmpty(l.Name)
-                ? char.ToUpper(l.Name[0]) + l.Name.Substring(1)
-                : l.Name
+                        ? char.ToUpper(l.Name[0]) + l.Name.Substring(1)
+                        : l.Name
                 });
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                // W przypadku awarii połączenia z Google, system rejestruje błąd i informuje aplikację o problemie.
                 Console.WriteLine($"BŁĄD POBIERANIA JĘZYKÓW: {ex.Message}");
-
                 return StatusCode(500, new { message = "Nie udało się pobrać listy języków.", error = ex.Message });
             }
         }
-        [HttpGet("latest")]
-        public async Task<IActionResult> GetLatestRecord()
+
+        // 1. Inicjalizacja dokumentu nowej sesji w Firestore
+        [HttpGet("start-session")]
+        public async Task<IActionResult> StartSession()
         {
             try
             {
-                Query query = _firestore.Collection("conversations")
-                                        .OrderByDescending("timestamp")
-                                        .Limit(1);
+                string sessionId = Guid.NewGuid().ToString();
+                DocumentReference sessionRef = _firestore.Collection("transcription-sessions").Document(sessionId);
 
-                QuerySnapshot snapshot = await query.GetSnapshotAsync();
-                var document = snapshot.Documents.FirstOrDefault();
-
-                if (document == null)
-                    return NotFound(new { message = "Brak wpisów w bazie danych." });
-
-                var result = new
+                var sessionData = new Dictionary<string, object>
                 {
-                    content = document.ContainsField("content") ? document.GetValue<string>("content") : "",
-                    timestamp = document.ContainsField("timestamp") ? document.GetValue<DateTime>("timestamp").ToLocalTime().ToString("HH:mm:ss") : ""
+                    { "sessionId", sessionId },
+                    { "createdAt", FieldValue.ServerTimestamp },
+                    { "transcriptions", new List<object>() }
                 };
 
-                return Ok(result);
+                await sessionRef.SetAsync(sessionData);
+                return Ok(new { sessionId = sessionId });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"BŁĄD POBIERANIA Z FIRESTORE: {ex.ToString()}");
-                return StatusCode(500, new { message = "Błąd bazy danych.", error = ex.Message });
+                Console.WriteLine($"BŁĄD TWORZENIA SESJI: {ex.ToString()}");
+                return StatusCode(500, new { message = "Nie udało się zainicjalizować sesji.", error = ex.Message });
             }
         }
-        // Przyjmuje nagranie audio od użytkownika, wysyła je do analizy i zwraca przetworzony tekst.
-        [HttpPost("process")]
-        public async Task<IActionResult> Process([FromBody] TranscriptionRequest request)
-        {
-            if (string.IsNullOrEmpty(request.AudioContent))
-                return BadRequest("Puste audio");
 
+        // 2. Przetwarzanie audio powiązane z konkretną sesją
+        [HttpPost("process")]
+public async Task<IActionResult> Process([FromBody] TranscriptionRequest request)
+{
+    if (string.IsNullOrEmpty(request.SessionId))
+        return BadRequest("Brak identyfikatora sesji.");
+
+    if (string.IsNullOrEmpty(request.AudioContent))
+        return BadRequest("Puste audio");
+
+    try
+    {
+        var recognizedText = await _service.ProcessTranscriptionAsync(request.AudioContent, request.LanguageCode);
+
+        if (string.IsNullOrWhiteSpace(recognizedText))
+        {
+            return Ok(new { text = "" });
+        }
+
+        DocumentReference sessionRef = _firestore.Collection("transcription-sessions").Document(request.SessionId);
+
+        // DYNAMICZNE OBLICZANIE CZASU LOKALNEGO NA PODSTAWIE OFFSETU Z FRONTENDU
+        DateTime localTime = DateTime.UtcNow.AddMinutes(-request.TimezoneOffset);
+
+        var newItem = new Dictionary<string, object>
+        {
+            { "timestamp", localTime.ToString("HH:mm:ss") },
+            { "content", recognizedText.Trim() }
+        };
+
+        await sessionRef.UpdateAsync("transcriptions", FieldValue.ArrayUnion(newItem));
+        return Ok(new { text = recognizedText });
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"PEŁNY BŁĄD PROCESU TRANSKRYPCJI: {ex.ToString()}");
+        return StatusCode(500, new { message = "Wystąpił błąd podczas przetwarzania transkrypcji.", exception = ex.Message });
+    }
+}
+
+        // 3. Bezpieczne pobieranie historii całej sesji
+        [HttpGet("session-history/{sessionId}")]
+        public async Task<IActionResult> GetSessionHistory(string sessionId)
+        {
             try
             {
-                // Uruchomienie głównego procesu zamiany mowy na tekst za pomocą serwisu transkrypcji.
-                var result = await _service.ProcessTranscriptionAsync(request.AudioContent, request.LanguageCode);
-                return Ok(new { text = result });
+                DocumentReference sessionRef = _firestore.Collection("transcription-sessions").Document(sessionId);
+                DocumentSnapshot snapshot = await sessionRef.GetSnapshotAsync();
+
+                if (!snapshot.Exists)
+                    return NotFound(new { message = "Podana sesja nie istnieje." });
+
+                var resultList = new List<TranscriptionItem>();
+
+                if (snapshot.ContainsField("transcriptions"))
+                {
+                    var rawTranscriptions = snapshot.GetValue<List<object>>("transcriptions");
+                    if (rawTranscriptions != null)
+                    {
+                        foreach (var item in rawTranscriptions)
+                        {
+                            if (item is Dictionary<string, object> dict)
+                            {
+                                resultList.Add(new TranscriptionItem
+                                {
+                                    Timestamp = dict.ContainsKey("timestamp") ? dict["timestamp"]?.ToString() ?? "" : "",
+                                    Content = dict.ContainsKey("content") ? dict["content"]?.ToString() ?? "" : ""
+                                });
+                            }
+                        }
+                    }
+                }
+                return Ok(resultList);
             }
             catch (Exception ex)
             {
-                // Rejestrowanie szczegółów błędu oraz zwracanie raportu, aby można było szybko naprawić problem w kodzie.
-                Console.WriteLine($"PEŁNY BŁĄD APLIKACJI: {ex.ToString()}");
-
-                return StatusCode(500, new
-                {
-                    message = "Wystąpił błąd podczas przetwarzania transkrypcji.",
-                    exception = ex.Message,
-                    stackTrace = ex.StackTrace
-                });
+                Console.WriteLine($"BŁĄD POBIERANIA HISTORII SESJI: {ex.ToString()}");
+                return StatusCode(500, new { message = "Błąd pobierania historii z bazy danych.", error = ex.Message });
             }
         }
     }

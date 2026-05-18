@@ -1,4 +1,21 @@
-﻿// Funkcja zamieniająca nagranie dźwiękowe z przeglądarki na format tekstowy zrozumiały dla serwera.
+﻿// Zmienna globalna przechowująca unikalny identyfikator sesji dla karty przeglądarki
+let currentSessionId = null;
+
+// Wywoływane automatycznie przy starcie strony – tworzy izolowany dokument sesji w Firestore
+async function startNewSession() {
+    try {
+        const response = await fetch('/api/transcription/start-session');
+        if (!response.ok) throw new Error('Nie udało się utworzyć sesji na serwerze.');
+        
+        const data = await response.json();
+        currentSessionId = data.sessionId;
+        console.log("Inicjalizacja sesji udana. ID sesji:", currentSessionId);
+    } catch (error) {
+        console.error("Krytyczny błąd podczas tworzenia sesji:", error);
+    }
+}
+
+// Funkcja zamieniająca nagranie dźwiękowe z przeglądarki na format tekstowy
 async function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -8,22 +25,24 @@ async function blobToBase64(blob) {
     });
 }
 
-// Funkcja wysyłająca nagranie do backendu i oczekująca na gotowy tekst (transkrypcję).
+// Funkcja wysyłająca nagranie do backendu
 async function sendToBackend(base64Audio) {
     const lang = document.getElementById("language").value;
     console.log("Wysyłanie danych do backendu... Język:", lang);
+    const offset = new Date().getTimezoneOffset();
 
     try {
         const response = await fetch('/api/transcription/process', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                audioContent: base64Audio,
-                languageCode: lang
+                AudioContent: base64Audio,
+                LanguageCode: lang,
+                SessionId: currentSessionId,
+                TimezoneOffset: offset // <-- WYSYŁAMY CZAS LOKALNY DO BACKENDU
             })
         });
 
-        // Obsługa błędów, jeśli serwer nie może przetworzyć nagrania.
         if (!response.ok) {
             const errText = await response.text();
             console.error("Serwer zwrócił błąd:", response.status, errText);
@@ -31,41 +50,36 @@ async function sendToBackend(base64Audio) {
         }
 
         const data = await response.json();
-        return data.text || "Brak tekstu w odpowiedzi.";
+        return data.text; 
     } catch (error) {
         console.error("Błąd sieci/fetch:", error);
         return "Błąd połączenia: " + error.message;
     }
 }
-async function fetchLatestFromRecord() {
+
+// Pobiera tablicę wszystkich transkrypcji należących wyłącznie do tej sesji
+async function fetchSessionHistory() {
+    if (!currentSessionId) return [];
     try {
-        const response = await fetch('/api/transcription/latest');
-        
-        if (!response.ok) {
-            console.warn("Serwer nie zwrócił poprawnego rekordu z Firestore. Status:", response.status);
-            return null;
-        }
-        
-        const data = await response.json();
-        return data; // Zwraca obiekt { content: "...", timestamp: "..." }
+        const response = await fetch(`/api/transcription/session-history/${currentSessionId}`);
+        if (!response.ok) return [];
+        return await response.json();
     } catch (error) {
-        console.error("Błąd sieci podczas pobierania najnowszego rekordu:", error);
-        return null;
+        console.error("Nie udało się pobrać historii sesji:", error);
+        return [];
     }
 }
-// Pobiera listę języków z serwera i dynamicznie uzupełnia menu wyboru na stronie.
+
+// Pobiera listę języków z serwera i uzupełnia selektor
 async function initializeLanguageSelector() {
     const selectElement = document.getElementById('language');
-    
     try {
         const response = await fetch('/api/transcription/supported-languages');
         if (!response.ok) throw new Error('Błąd API');
         
         const languages = await response.json();
-        
-        selectElement.innerHTML = ''; // Usuwa dotychczasowe opcje.
+        selectElement.innerHTML = ''; 
 
-        // Dodaje nowe opcje języków pobrane z Google.
         languages.forEach(lang => {
             const option = document.createElement('option');
             option.value = lang.code;
@@ -73,9 +87,10 @@ async function initializeLanguageSelector() {
             selectElement.appendChild(option);
         });
 
-        selectElement.value = 'pl-PL'; // Ustawia polski jako domyślny język.
+        selectElement.value = 'pl-PL'; 
     } catch (error) {
         console.error('Nie udało się załadować języków:', error);
     }
 }
+
 window.addEventListener('DOMContentLoaded', initializeLanguageSelector);
